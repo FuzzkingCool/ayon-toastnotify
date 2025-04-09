@@ -74,7 +74,7 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
                 ToastNotifyAddon._platform_handler = handler_class(self.settings)
  
                 # Register the AppID for the platform handler
-                ToastNotifyAddon._platform_handler.ensure_app_id(self.settings["app_id"])
+                ToastNotifyAddon._platform_handler._ensure_app_id(self.settings["app_id"])
               
                 log.info("Windows platform handler initialized and stored for reuse")
             else:

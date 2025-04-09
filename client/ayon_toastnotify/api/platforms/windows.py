@@ -24,7 +24,7 @@ class ToastNotifyWindowsPlatform(ToastNotifyPlatformBase):
     def __init__(self, settings):
         super().__init__(settings)
         self.powershell_path = settings.get("windows_powershell_path", "powershell.exe")
-        self.app_id_name = settings.get("app_id", "AYON.ToastNotify")
+        self.app_id = settings.get("app_id", "AYON.ToastNotify")
         self.burnt_toast_available = self._check_burnt_toast_available()
         self.powershell_version = self._get_powershell_version()
         self.supports_events = self._check_events_supported()
