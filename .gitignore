@@ -172,3 +172,14 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Ignore packaging folders
+package/
+toastnotify-*/
+
+# VSCode settings
+.vscode/
+
+# Python cache files
+__pycache__
+*.pyc
