@@ -1,11 +1,12 @@
 import os
 import subprocess
-import shutil
+
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 import tempfile
 import threading
 import time
+from qtpy import QtCore
 
 from .base import ToastNotifyPlatformBase
 from ..logger import log
@@ -35,6 +36,11 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
         **kwargs
     ) -> bool:
         """Show a macOS notification using alerter."""
+        # Add check to detect if notifications are enabled
+        # We'll count errors and prompt after repeated failures
+        if not hasattr(self, '_notification_failures'):
+            self._notification_failures = 0
+
         try:
             # Re-check the path to make sure it's available
             if not self.alerter_path:
@@ -123,6 +129,18 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
         
         except Exception as e:
             log.error(f"Error showing macOS notification: {e}")
+            self._notification_failures += 1
+            
+            # After 3 failures, suggest enabling notifications
+            if self._notification_failures >= 3:
+                self._notification_failures = 0
+                
+                # Import inside function to avoid circular imports
+                from ...install_alerter import prompt_notification_settings
+                
+                # Run on main thread since Qt requires it
+                QtCore.QTimer.singleShot(0, prompt_notification_settings)
+                
             return False
         
     def _find_terminal_notifier(self):

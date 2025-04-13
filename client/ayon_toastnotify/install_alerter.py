@@ -1,14 +1,10 @@
 import os
-import sys
-import time
 import shutil
 import platform
-import tempfile
 import threading
-import plistlib
 import subprocess
 from pathlib import Path
-
+from qtpy import QtWidgets, QtCore
 _installation_lock = threading.Lock()
 _installation_completed = False
 _installation_result = None
@@ -16,6 +12,7 @@ _installation_in_progress = False  # This was missing
 
 from . import AYON_TOASTNOTIFY_ROOT
 from .api.logger import log
+
 
 def _fix_alerter_permissions(app_path):
     """Fix permissions and security settings for the alerter app bundle."""
@@ -281,20 +278,6 @@ def _ensure_alerter_available(force_reinstall=False):
                 _installation_completed = True
                 _installation_result = str(alerter_exe)
                 _installation_in_progress = False
-            
-            # After successful installation, guide user to set notification preferences
-            result = subprocess.run([
-                "osascript", "-e", 
-                'display dialog "Alerter has been installed. Would you like to configure notification settings now?" buttons {"Not Now", "Configure"} default button "Configure" with title "Notification Setup"'
-            ], capture_output=True, text=True)
-            
-            # If the user clicked "Configure", open the settings
-            if result.stdout.strip() == "button returned:Configure":
-                # Open notification settings
-                subprocess.run([
-                    "open", "x-apple.systempreferences:com.apple.preference.notifications"
-                ])
-            
             return str(alerter_exe)
         else:
             log.error("Failed to create alerter app bundle")
@@ -309,6 +292,35 @@ def _ensure_alerter_available(force_reinstall=False):
             _installation_in_progress = False
         return None
 
+def install_alerter(settings, async_install=True):
+    """Install the alerter app bundle for macOS notifications."""
+    global _installation_in_progress
+    
+    if platform.system() != "Darwin":
+        return None
+    
+    if _installation_in_progress:
+        log.debug("Alerter installation already in progress, skipping")
+        return None
+    
+    if async_install:
+        # Install in a separate thread to not block startup
+        threading.Thread(
+            target=_ensure_alerter_available,
+            args=(False,),
+            daemon=True
+        ).start()
+        return None
+    else:
+        # Install synchronously
+        result = _ensure_alerter_available(False)
+        
+        # After successful installation, prompt for notification settings
+        if not async_install and result:
+            prompt_notification_settings()
+        
+        return result
+    
 def force_reinstall_alerter():
     """Force reinstallation of alerter app bundle."""
     global _installation_completed, _installation_result, _installation_in_progress
@@ -352,55 +364,34 @@ def open_notification_settings():
         log.error(f"Error opening notification settings: {e}")
         return False
 
-def configure_alerter_notifications():
-    """Guide user through configuring alerter notification settings."""
+def prompt_notification_settings():
+    """Show QtPy dialog prompting user to enable notifications for Alerter."""
     if platform.system() != "Darwin":
         log.warning("This function is only applicable on macOS")
         return False
         
     try:
-        # First ensure alerter is installed
-        alerter_path = _ensure_alerter_available()
+        # Create the message box
+        # User clicked Open Notification Settings
+        open_notification_settings()
         
-        if not alerter_path:
-            log.error("Cannot configure notifications - alerter is not installed")
-            return False
-            
-        # Show a prompt to the user
-        result = subprocess.run([
-            "osascript", "-e", 
-            'display dialog "Would you like to configure Alerter notification settings now? This will help ensure notifications appear properly." buttons {"Not Now", "Configure"} default button "Configure" with title "AYON Notification Setup"'
-        ], capture_output=True, text=True)
+        # Show follow-up instructions with more specific guidance
+        msg_box = QtWidgets.QMessageBox()
+        msg_box.setWindowTitle("How to Enable AYON Notifications")
+        msg_box.setIcon(QtWidgets.QMessageBox.Information)
+        # set width to 600px
+        msg_box.setFixedWidth(600)
         
-        if "button returned:Configure" in result.stdout:
-            # Open notification settings
-            return open_notification_settings()
-        else:
-            log.info("User chose not to configure notification settings")
-            return False
+        msg_box.setText(
+            "AYON ToastNotify requires you to enable notifications from 'Alerter'.\n\n"
+            "You'll need to find 'Alerter' in the list and ensure:\n"
+            "• 'Allow Notifications' is enabled\n"
+            "• Alert style is set to 'Alerts' (not Banners)\n"
+            "• Sound is enabled for better visibility"
+        )
+        msg_box.exec_()
+        return True
+ 
     except Exception as e:
-        log.error(f"Error during notification configuration: {e}")
+        log.error(f"Error showing notification settings prompt: {e}")
         return False
-
-def install_alerter(settings, async_install=True):
-    """Install alerter for macOS toast notifications."""
-    global _installation_in_progress
-    
-    if platform.system() != "Darwin":
-        return None
-    
-    if _installation_in_progress:
-        log.debug("Alerter installation already in progress, skipping")
-        return None
-    
-    if async_install:
-        # Install in a separate thread to not block startup
-        threading.Thread(
-            target=_ensure_alerter_available,
-            args=(False,),
-            daemon=True
-        ).start()
-        return None
-    else:
-        # Install synchronously
-        return _ensure_alerter_available(False)
