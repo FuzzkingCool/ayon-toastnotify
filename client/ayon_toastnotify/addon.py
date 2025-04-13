@@ -1,7 +1,5 @@
 import os
 import platform
-import threading
-import time
 from pathlib import Path
 from qtpy import QtWidgets, QtCore
 
@@ -11,7 +9,8 @@ from ayon_core.lib import Logger
 from .version import __version__
 from .api.notification_manager import NotificationManager 
 from .api.logger import log
-from .installer import install_burnt_toast, warmup_powershell_session
+from .install_burnttoast import install_burnt_toast, warmup_powershell_session
+from .install_alerter import install_alerter
 from . import AYON_TOASTNOTIFY_ROOT
 
 class ToastNotifyAddon(AYONAddon, ITrayService):
@@ -80,6 +79,16 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
             else:
                 log.warning("Failed to install BurntToast. Windows notifications may not work.")
         
+        # Initialize alerter for macOS
+        elif platform.system() == "Darwin":
+            log.info("Initializing macOS toast notification dependencies")
+            # Install alerter synchronously
+            alerter_path = install_alerter(self.settings, async_install=False)
+            if alerter_path:
+                log.info(f"Successfully installed alerter at {alerter_path}")
+            else:
+                log.warning("Failed to install alerter. macOS notifications may not work.")
+        
         # Get the port and set it in environment before creating NotificationManager
         from .api.notification_manager import get_toast_notify_port
         
@@ -137,7 +146,7 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
                 log.info("Notification service stopped successfully")
             
             # If in debug mode, uninstall BurntToast
-            from .installer import is_debug_mode, uninstall_burnt_toast
+            from .install_burnttoast import is_debug_mode, uninstall_burnt_toast
             if is_debug_mode() and platform.system() == "Windows":
                 log.info("Debug mode detected - attempting to uninstall BurntToast")
                 uninstall_burnt_toast()

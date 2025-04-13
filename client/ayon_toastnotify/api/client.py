@@ -75,9 +75,7 @@ class ToastNotifyClient:
         # First try the HTTP service
         if self._try_http_notification(title, message, icon, timeout, actions, platform_options, on_action):
             return True
-            
-        # If HTTP service failed, try direct notification
-        log.info("Falling back to direct notification method")
+ 
         if self.platform_handler:
             try:
                 system = platform.system().lower()

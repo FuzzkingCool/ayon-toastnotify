@@ -5,7 +5,8 @@ AYON_TOASTNOTIFY_ROOT = Path(__file__).parent.absolute()
 
 from .version import __version__
 from .api.client import send_notification, send_progress_notification, ToastNotifyClient
-from .installer import install_burnt_toast
+from .install_burnttoast import install_burnt_toast
+from .install_alerter import install_alerter
 from .addon import ToastNotifyAddon
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "send_progress_notification",
     "ToastNotifyClient",
     "install_burnt_toast",
+    "install_alerter",
     "AYON_TOASTNOTIFY_ROOT"
 ]

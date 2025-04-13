@@ -32,7 +32,7 @@ def _install_from_bundled_zip(powershell_path):
         log.info("Installing BurntToast from bundled ZIP file")
         
         # Paths
-        bundled_zip = AYON_TOASTNOTIFY_ROOT / "vendor" / "BurntToast.zip"
+        bundled_zip = AYON_TOASTNOTIFY_ROOT / "vendor" / "BurntToast" / "BurntToast.zip"
         module_path = Path(os.path.expanduser("~")) / "Documents" / "WindowsPowerShell" / "Modules" / "BurntToast"
         
  

@@ -4,7 +4,7 @@ from pydantic import Field
 from ayon_server.settings import BaseSettingsModel, SettingsField
 
 
-__version__ = "0.1.0"
+__version__ = "0.1.4"
 
 
 class ToastNotifySettings(BaseSettingsModel):

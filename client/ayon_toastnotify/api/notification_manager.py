@@ -1,6 +1,5 @@
 import os
 import re
-import time
 import json
 import socket
 import threading
@@ -8,7 +7,6 @@ import http.server
 import socketserver
 import platform
 import urllib.parse
-import subprocess
 from typing import Dict, Any, Optional, List, Callable
 
 from .logger import log
@@ -30,12 +28,17 @@ def handle_action_callback(notification_id: str, action_id: str) -> bool:
         callback = _action_callbacks.get(notification_id)
         if callback:
             try:
+                log.info(f"Executing callback for notification {notification_id}, action {action_id}")
                 callback(action_id)
                 # Remove the callback after it's been called
                 _action_callbacks.pop(notification_id, None)
                 return True
             except Exception as e:
                 log.error(f"Error in action callback: {e}")
+                import traceback
+                log.debug(f"Callback error details: {traceback.format_exc()}")
+        else:
+            log.warning(f"No callback found for notification {notification_id}")
     return False
 
 class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
@@ -123,8 +126,10 @@ class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
             log.info(f"Button clicked: notification={notification_id}, action={action_id}")
             success = handle_action_callback(notification_id, action_id)
             
+            # Always return success to the protocol handler
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Connection', 'close')  # Important: close the connection
             self.end_headers()
             
             response = {"status": "success" if success else "error"}
@@ -187,6 +192,29 @@ class NotificationManager:
             except Exception as e:
                 log.error(f"Failed to initialize platform handler: {e}")
                 self.platform_handler = None
+    
+    def _initialize_platform_handler(self):
+        """Initialize the appropriate platform handler based on the current OS."""
+        if platform.system() == "Windows":
+            from .platforms.windows import ToastNotifyWindowsPlatform
+            self.platform_handler = ToastNotifyWindowsPlatform(
+                app_id=self.settings.get("app_id", "AYON.ToastNotify"),
+                powershell_path=self.settings.get("windows_powershell_path", "powershell.exe")
+            )
+        elif platform.system() == "Darwin":
+            from .platforms.macos import ToastNotifyMacOSPlatform
+            from ..install_alerter import _ensure_alerter_available
+            
+            # First get the alerter path
+            alerter_path = _ensure_alerter_available()
+            
+            # Initialize with the actual path string
+            self.platform_handler = ToastNotifyMacOSPlatform(alerter_path=alerter_path)
+        else:  # Linux
+            from .platforms.linux_generic import ToastNotifyLinuxPlatform
+            self.platform_handler = ToastNotifyLinuxPlatform()
+        
+        log.info(f"Initialized new platform handler: {self.platform_handler.__class__.__name__}")
     
     def start(self):
         """Start the notification service."""
