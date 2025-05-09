@@ -9,7 +9,7 @@ import time
 from qtpy import QtCore
 
 from .base import ToastNotifyPlatformBase
-from ..logger import log
+from ...logger import log
 from ...install_alerter import install_alerter
 
 class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
@@ -48,6 +48,18 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                 
             if not self.alerter_path:
                 log.error("Could not get alerter path, notification failed")
+                self._notification_failures += 1
+                
+                # After 3 failures, suggest enabling notifications
+                if self._notification_failures >= 3:
+                    self._notification_failures = 0
+                    
+                    # Import inside function to avoid circular imports
+                    from ...install_alerter import prompt_notification_settings
+                    
+                    # Run on main thread since Qt requires it
+                    QtCore.QTimer.singleShot(0, prompt_notification_settings)
+                    
                 return False
         
             # Create a temporary file to capture the response
@@ -138,8 +150,8 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                 # Import inside function to avoid circular imports
                 from ...install_alerter import prompt_notification_settings
                 
-                # Run on main thread since Qt requires it
-                QtCore.QTimer.singleShot(0, prompt_notification_settings)
+                # Run on main thread since Qt requires it - with a slight delay to avoid UI issues
+                QtCore.QTimer.singleShot(100, lambda: prompt_notification_settings())
                 
             return False
         

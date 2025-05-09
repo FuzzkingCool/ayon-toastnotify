@@ -11,7 +11,7 @@ _installation_result = None
 _installation_in_progress = False  # This was missing
 
 from . import AYON_TOASTNOTIFY_ROOT
-from .api.logger import log
+from .logger import log
 
 
 def _fix_alerter_permissions(app_path):
@@ -316,8 +316,10 @@ def install_alerter(settings, async_install=True):
         result = _ensure_alerter_available(False)
         
         # After successful installation, prompt for notification settings
-        if not async_install and result:
-            prompt_notification_settings()
+        # Only show prompt if installation succeeded
+        if not async_install and result and os.path.exists(result):
+            # Use QTimer to ensure this runs on the main thread with a slight delay
+            QtCore.QTimer.singleShot(100, prompt_notification_settings)
         
         return result
     
@@ -371,12 +373,67 @@ def prompt_notification_settings():
         return False
         
     try:
-        # Create the message box
-        # User clicked Open Notification Settings
+        # Check if alerter is actually installed before proceeding
+        app_path = Path.home() / ".ayon" / "apps" / "Alerter.app"
+        alerter_exe = app_path / "Contents" / "MacOS" / "alerter"
+        
+        # Create a parent widget to ensure the dialog doesn't cause app closure
+        # Get active window if possible
+        parent = None
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+        except:
+            pass
+        
+        # If no active window, create a temporary widget to serve as parent
+        if parent is None:
+            parent = QtWidgets.QWidget()
+            parent.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+            parent.resize(1, 1)
+            parent.show()
+            # Hide it immediately but keep it alive
+            parent.setVisible(False)
+            
+        if not alerter_exe.exists():
+            # Alerter failed to install, show different message
+            msg_box = QtWidgets.QMessageBox(parent)
+            msg_box.setWindowTitle("AYON Notification Setup Issue")
+            msg_box.setText(
+                "AYON could not set up the notification system (Alerter) on your Mac.\n\n"
+                "This may be due to permission issues or installation problems."
+            )
+            msg_box.setInformativeText(
+                "Would you like to retry installing the notification system?\n"
+                "If the problem persists, please contact your administrator."
+            )
+            retry_button = msg_box.addButton("Retry Installation", QtWidgets.QMessageBox.AcceptRole)
+            cancel_button = msg_box.addButton("Continue without notifications", QtWidgets.QMessageBox.RejectRole)
+            
+            # Make sure dialog is modal to prevent application from quitting
+            msg_box.setModal(True)
+            
+            # Process events before showing dialog
+            QtWidgets.QApplication.processEvents()
+            
+            # Use exec_ to ensure application doesn't exit (Qt5 compatible)
+            msg_box.exec_()
+            
+            # Only retry if explicitly requested
+            if msg_box.clickedButton() == retry_button:
+                # Force reinstall alerter on a timer to avoid blocking
+                QtCore.QTimer.singleShot(100, force_reinstall_alerter)
+                
+            # Clean up temporary parent if we created one
+            if parent and not parent.isVisible():
+                parent.deleteLater()
+                
+            return False
+            
+        # If we get here, alerter is installed, so open notification settings
         open_notification_settings()
         
         # Show follow-up instructions with more specific guidance
-        msg_box = QtWidgets.QMessageBox()
+        msg_box = QtWidgets.QMessageBox(parent)
         msg_box.setWindowTitle("How to Enable AYON Notifications")
         msg_box.setIcon(QtWidgets.QMessageBox.Information)
         # set width to 600px
@@ -389,7 +446,22 @@ def prompt_notification_settings():
             "• Alert style is set to 'Alerts' (not Banners)\n"
             "• Sound is enabled for better visibility"
         )
+        # Use a standard "OK" button
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        
+        # Make sure dialog is modal
+        msg_box.setModal(True)
+        
+        # Process events before showing dialog
+        QtWidgets.QApplication.processEvents()
+        
+        # Use exec_ to ensure application doesn't exit (Qt5 compatible)
         msg_box.exec_()
+        
+        # Clean up temporary parent if we created one
+        if parent and not parent.isVisible():
+            parent.deleteLater()
+            
         return True
  
     except Exception as e:

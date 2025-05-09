@@ -8,7 +8,7 @@ import socket
 import time
 from typing import Dict, Any, Optional, List, Callable
 
-from .logger import log
+from ..logger import log
 from .platforms import get_platform_handler
 from ..addon import ToastNotifyAddon
 

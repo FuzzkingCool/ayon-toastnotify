@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from . import AYON_TOASTNOTIFY_ROOT
-from .api.logger import log
+from .logger import log
 
 # Module-level flags to track installation status
 _installation_in_progress = False

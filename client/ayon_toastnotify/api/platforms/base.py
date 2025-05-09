@@ -4,7 +4,7 @@ import platform
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 
-from ..logger import log
+from ...logger import log
 
 class ToastNotifyPlatformBase:
     """

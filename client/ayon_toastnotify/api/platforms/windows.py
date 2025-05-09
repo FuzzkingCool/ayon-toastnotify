@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional, List, Callable
 import zipfile
 
 from .base import ToastNotifyPlatformBase
-from ..logger import log
+from ...logger import log
 
 def _create_hidden_startupinfo():
     """Create startupinfo object to hide console window"""

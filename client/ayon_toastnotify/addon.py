@@ -8,7 +8,7 @@ from ayon_core.lib import Logger
 
 from .version import __version__
 from .api.notification_manager import NotificationManager 
-from .api.logger import log
+from .logger import log
 from .install_burnttoast import install_burnt_toast, warmup_powershell_session
 from .install_alerter import install_alerter
 from . import AYON_TOASTNOTIFY_ROOT

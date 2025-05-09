@@ -3,7 +3,7 @@ import subprocess
 from typing import Dict, Any, Optional, List
 
 from .base import ToastNotifyPlatformBase
-from ..logger import log
+from ...logger import log
 
 class ToastNotifyLinuxPlatform(ToastNotifyPlatformBase):
     """Linux-specific implementation using notify-send."""
