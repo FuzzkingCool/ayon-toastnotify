@@ -403,7 +403,7 @@ def main(
     """Main entrypoint for package creation."""
     # Get addon details from settings
     addon_name = "toastnotify"
-    addon_version = "0.1.4"
+    addon_version = "0.1.5"
     
     # Create bundle directory
     bundle_dir = os.path.join(output_dir or ".", f"{addon_name}-{addon_version}")
