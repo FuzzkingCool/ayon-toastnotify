@@ -12,6 +12,8 @@ from .base import ToastNotifyPlatformBase
 from ...logger import log
 from ...install_alerter import install_alerter
 
+from ayon_api import get_addon_project_settings
+
 class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
     """macOS-specific implementation using alerter."""
     
@@ -24,6 +26,11 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
         if not self.alerter_path or not isinstance(self.alerter_path, (str, bytes, os.PathLike)):
             log.debug("Alerter path is not valid, will be obtained when needed")
             self.alerter_path = None
+        
+        self.settings = get_addon_project_settings()
+        self.alerter_installation_warnings_on_each_launch = self.settings.get(
+            "alerter_installation_warnings_on_each_launch", False
+        )
         
     def show_notification(
         self, 
@@ -50,8 +57,8 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                 log.error("Could not get alerter path, notification failed")
                 self._notification_failures += 1
                 
-                # After 3 failures, suggest enabling notifications
-                if self._notification_failures >= 3:
+                # After 3 failures, suggest enabling notifications only if warnings are enabled
+                if self._notification_failures >= 3 and self.alerter_installation_warnings_on_each_launch:
                     self._notification_failures = 0
                     
                     # Import inside function to avoid circular imports
@@ -59,6 +66,11 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                     
                     # Run on main thread since Qt requires it
                     QtCore.QTimer.singleShot(0, prompt_notification_settings)
+                    return False
+                    
+                # If warnings are disabled, fall back to osascript
+                if not self.alerter_installation_warnings_on_each_launch:
+                    return self._show_osascript_notification(title, message)
                     
                 return False
         
@@ -126,6 +138,11 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                         os.unlink(response_path)
                     except:
                         pass
+                    
+                    # Fall back to osascript if warnings are disabled
+                    if not self.alerter_installation_warnings_on_each_launch:
+                        return self._show_osascript_notification(title, message)
+                        
                     return False
             except subprocess.TimeoutExpired:
                 # This is good - means it's running
@@ -143,8 +160,8 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
             log.error(f"Error showing macOS notification: {e}")
             self._notification_failures += 1
             
-            # After 3 failures, suggest enabling notifications
-            if self._notification_failures >= 3:
+            # After 3 failures, suggest enabling notifications only if warnings are enabled
+            if self._notification_failures >= 3 and self.alerter_installation_warnings_on_each_launch:
                 self._notification_failures = 0
                 
                 # Import inside function to avoid circular imports
@@ -153,6 +170,44 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                 # Run on main thread since Qt requires it - with a slight delay to avoid UI issues
                 QtCore.QTimer.singleShot(100, lambda: prompt_notification_settings())
                 
+                return False
+                
+            # Fall back to osascript if warnings are disabled
+            if not self.alerter_installation_warnings_on_each_launch:
+                return self._show_osascript_notification(title, message)
+                
+            return False
+            
+    def _show_osascript_notification(self, title, message):
+        """Fall back to standard macOS notifications using osascript."""
+        try:
+            # Escape double quotes in the message and title
+            message = message.replace('"', '\\"')
+            title = title.replace('"', '\\"')
+            
+            # Create the AppleScript command
+            script = f'''
+            display notification "{message}" with title "{title}"
+            '''
+            
+            # Run the osascript command
+            process = subprocess.Popen(
+                ["osascript", "-e", script],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Wait for it to complete
+            returncode = process.wait(timeout=1)
+            if returncode != 0:
+                log.warning(f"osascript notification failed: {process.stderr.read()}")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            log.error(f"Error showing osascript notification: {e}")
             return False
         
     def _find_terminal_notifier(self):

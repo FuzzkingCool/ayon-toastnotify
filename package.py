@@ -1,6 +1,6 @@
 name = "toastnotify"
 title = "toastnotify"
-version = "0.1.5"
+version = "0.1.6"
 client_dir = "ayon_toastnotify"
 
 ayon_server_version = ">=1.1.2"

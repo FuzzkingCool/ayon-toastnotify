@@ -4,7 +4,7 @@ from pydantic import Field
 from ayon_server.settings import BaseSettingsModel, SettingsField
 
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 
 class ToastNotifySettings(BaseSettingsModel):
@@ -41,7 +41,11 @@ class ToastNotifySettings(BaseSettingsModel):
         description="Path to PowerShell executable (Windows only)"
     )
 
-    
+    alerter_installation_warnings_on_each_launch: bool = Field(
+        False,
+        title="Alerter ( MacOS ) Installation Warnings on Each Launch",
+        description="If enabled, show warnings about Alerter installation on each launch"
+    )
 
 # Default settings
 DEFAULT_TOASTNOTIFY_SETTINGS = {
@@ -50,6 +54,7 @@ DEFAULT_TOASTNOTIFY_SETTINGS = {
     "enabled": True,
     "app_id": "AYON.ToastNotify",
     "notification_timeout": 5,
-    "windows_powershell_path": "powershell.exe"
+    "windows_powershell_path": "powershell.exe",
+    "alerter_installation_warnings_on_each_launch": False
 
 }
