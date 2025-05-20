@@ -183,3 +183,5 @@ toastnotify-*/
 # Python cache files
 __pycache__
 *.pyc
+ayon-toastnotify.code-workspace
+poetry.lock
