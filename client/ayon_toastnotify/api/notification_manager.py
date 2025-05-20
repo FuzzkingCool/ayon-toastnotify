@@ -43,7 +43,7 @@ def handle_action_callback(notification_id: str, action_id: str) -> bool:
 
 class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler for toast notifications."""
-    
+
     def log_message(self, format, *args):
         """Override to use our custom logger."""
         log.debug(format % args)
@@ -51,43 +51,43 @@ class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests for notifications."""
         parsed_path = urllib.parse.urlparse(self.path)
-        
+
         if parsed_path.path != "/notify":
             self.send_error(404, "Not Found")
             return
-            
+
         try:
             # Get content length
             content_length = int(self.headers.get('Content-Length', 0))
-            
+
             # Read the request body
             request_body = self.rfile.read(content_length).decode('utf-8')
-            
+
             # Parse JSON
             try:
                 notification_data = json.loads(request_body)
             except json.JSONDecodeError:
                 self.send_error(400, "Invalid JSON")
                 return
-                
+
             # Extract notification parameters
             title = notification_data.get("title", "AYON Notification")
             message = notification_data.get("message", "")
             icon = notification_data.get("icon")
-            timeout = notification_data.get("timeout", 
+            timeout = notification_data.get("timeout",
                                            self.server.notification_manager.notification_timeout)
             actions = notification_data.get("actions", [])
             platform_options = notification_data.get("platform_options", {})
-            
+
             # Get current platform
             system = platform.system().lower()
             specific_options = {}
-            
+
             # Extract platform-specific options if available
             if system in platform_options:
                 specific_options = platform_options[system]
                 specific_options.pop("timeout", None)
-            
+
             # Show notification
             result = self.server.notification_manager.show_notification(
                 title=title,
@@ -98,44 +98,44 @@ class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
                 callback=None,  # Callbacks aren't supported with REST
                 **specific_options
             )
-            
+
             # Send response
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
-            
+
             response = {"status": "success" if result else "error"}
             self.wfile.write(json.dumps(response).encode('utf-8'))
-            
+
         except Exception as e:
             log.error(f"Error processing notification: {e}")
             self.send_error(500, "Internal Server Error")
-            
+
     def do_GET(self):
         """Handle GET requests."""
         parsed_path = urllib.parse.urlparse(self.path)
-        
+
         # Handle action callbacks
         action_pattern = r'^/action/([^/]+)/([^/]+)$'
         action_match = re.match(action_pattern, parsed_path.path)
-        
+
         if action_match:
             notification_id = action_match.group(1)
             action_id = action_match.group(2)
-            
+
             log.info(f"Button clicked: notification={notification_id}, action={action_id}")
             success = handle_action_callback(notification_id, action_id)
-            
+
             # Always return success to the protocol handler
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Connection', 'close')  # Important: close the connection
             self.end_headers()
-            
+
             response = {"status": "success" if success else "error"}
             self.wfile.write(json.dumps(response).encode('utf-8'))
             return
-            
+
         # Handle health check as before
         if parsed_path.path == "/health":
             self.send_response(200)
@@ -150,7 +150,7 @@ class ToastNotifyHandler(http.server.BaseHTTPRequestHandler):
 class ToastNotifyHTTPServer(socketserver.TCPServer):
     """Custom HTTP server with notification manager reference."""
     allow_reuse_address = True
-    
+
     def __init__(self, server_address, handler_class, notification_manager):
         self.notification_manager = notification_manager
         super().__init__(server_address, handler_class)
@@ -158,10 +158,9 @@ class ToastNotifyHTTPServer(socketserver.TCPServer):
 class NotificationManager:
     """
     Manages toast notifications across platforms.
-    
     Provides an HTTP API for receiving notification requests.
     """
-    
+
     def __init__(self, settings: Dict[str, Any], platform_handler=None):
         """Initialize the notification manager with given settings."""
         self.settings = settings
@@ -171,16 +170,16 @@ class NotificationManager:
         self.thread = None
         self.server = None
         self.notification_timeout = settings.get("notification_timeout", 5)
-        
+
         # Set environment variable for other processes to use
         os.environ["AYON_TOASTNOTIFY_PORT"] = str(self.http_port)
-        
+
         # Add debug logging here
         log.info(f"NotificationManager initialized with port: {self.http_port}")
-        
+
         # Use provided platform handler or create a new one if not provided
         self.platform_handler = platform_handler
-        
+
         if self.platform_handler:
             log.info(f"Using provided platform handler: {type(self.platform_handler).__name__}")
         else:
@@ -192,7 +191,7 @@ class NotificationManager:
             except Exception as e:
                 log.error(f"Failed to initialize platform handler: {e}")
                 self.platform_handler = None
-    
+
     def _initialize_platform_handler(self):
         """Initialize the appropriate platform handler based on the current OS."""
         if platform.system() == "Windows":
@@ -204,84 +203,105 @@ class NotificationManager:
         elif platform.system() == "Darwin":
             from .platforms.macos import ToastNotifyMacOSPlatform
             from ..install_alerter import _ensure_alerter_available
-            
+
             # First get the alerter path
             alerter_path = _ensure_alerter_available()
-            
+
             # Initialize with the actual path string
             self.platform_handler = ToastNotifyMacOSPlatform(alerter_path=alerter_path)
         else:  # Linux
             from .platforms.linux_generic import ToastNotifyLinuxPlatform
             self.platform_handler = ToastNotifyLinuxPlatform()
-        
+
         log.info(f"Initialized new platform handler: {self.platform_handler.__class__.__name__}")
-    
+
     def start(self):
         """Start the notification service."""
         if self.running:
             log.warning("Notification service is already running")
             return
-            
+
         # Since we're now getting the port in __init__, we don't need the port selection logic here
         # Just use self.http_port directly
         log.info(f"Using port {self.http_port} for notification service")
-        
+
         self.running = True
         self.thread = threading.Thread(target=self._run_server, daemon=True)
         self.thread.start()
         log.info(f"Toast notification service started on port {self.http_port}")
-        
+
     def stop(self):
         """Stop the notification service."""
+        if not self.running:
+            return
+
         self.running = False
-        
+
         if self.server:
             try:
                 # Create a client connection to break the accept() call
                 socket.create_connection(("localhost", self.http_port), timeout=1)
                 self.server.shutdown()
                 self.server.server_close()
+                self.server = None
             except Exception as e:
                 log.debug(f"Exception during server shutdown: {e}")
-                
+
         if self.thread and self.thread.is_alive():
-            self.thread.join(timeout=2.0)
-            
+            try:
+                self.thread.join(timeout=2.0)
+                if self.thread.is_alive():
+                    log.warning("Notification thread did not terminate within timeout")
+            except Exception as e:
+                log.error(f"Error joining notification thread: {e}")
+
+        # Clean up platform handler if it exists
+        if self.platform_handler:
+            try:
+                self.platform_handler.cleanup()
+            except Exception as e:
+                log.error(f"Error cleaning up platform handler: {e}")
+            finally:
+                self.platform_handler = None
+
+        # Clean up any remaining action callbacks
+        with _action_callback_lock:
+            _action_callbacks.clear()
+
         log.info("Toast notification service stopped")
-            
+
     def _run_server(self):
         """Run the HTTP server to handle notification requests."""
         try:
             # Log server startup attempt with port
             log.info(f"Starting HTTP server on localhost:{self.http_port}")
-            
-            # Import required modules here to avoid potential circular imports
-            import http.server
-            import socketserver
-            import json
-            import urllib.parse
-            
+
             # Create server with explicit handler
             self.server = ToastNotifyHTTPServer(
                 ("localhost", self.http_port),
                 ToastNotifyHandler,
                 self
             )
-            
+
             # Log successful server creation
             log.info(f"HTTP server successfully created and listening on port {self.http_port}")
             log.debug("Entering server loop")
-            
+
             # Set a timeout to allow checking the running flag
             self.server.timeout = 1.0
-            
+
             # Main server loop
             while self.running:
                 try:
                     self.server.handle_request()
+                except socket.timeout:
+                    # This is expected due to the timeout we set
+                    continue
                 except Exception as e:
-                    log.error(f"Error handling request: {e}")
-                    
+                    if self.running:  # Only log if we're still supposed to be running
+                        log.error(f"Error handling request: {e}")
+                    break
+
         except OSError as e:
             # Check for specific error codes
             if hasattr(e, 'errno') and e.errno == 10048:  # Address already in use
@@ -292,11 +312,18 @@ class NotificationManager:
         except Exception as e:
             log.error(f"Unexpected error starting HTTP server: {e}")
             self.running = False
-            
+        finally:
+            # Ensure server is properly closed
+            if self.server:
+                try:
+                    self.server.server_close()
+                except Exception as e:
+                    log.error(f"Error closing server: {e}")
+
     def show_notification(
-        self, 
-        title: str, 
-        message: str, 
+        self,
+        title: str,
+        message: str,
         icon: Optional[str] = None,
         timeout: Optional[int] = None,
         actions: List[Dict[str, str]] = None,
@@ -307,7 +334,7 @@ class NotificationManager:
         if not self.platform_handler:
             log.error("No platform handler available")
             return False
-            
+
         try:
             return self.platform_handler.show_notification(
                 title=title,
@@ -321,7 +348,7 @@ class NotificationManager:
         except Exception as e:
             log.error(f"Error showing notification: {e}")
             return False
-        
+
 
 # Ensure the port is always set correctly and avoid using a fixed port unless explicitly required
 def get_toast_notify_port(settings: Dict[str, Any]) -> int:
@@ -330,11 +357,11 @@ def get_toast_notify_port(settings: Dict[str, Any]) -> int:
     if "AYON_TOASTNOTIFY_PORT" in os.environ:
         port_value = os.environ.pop("AYON_TOASTNOTIFY_PORT")
         log.debug(f"Cleared existing AYON_TOASTNOTIFY_PORT={port_value}")
-    
+
     # Explicitly check use_fixed_port setting with detailed logging
     use_fixed_port = settings.get("use_fixed_port", False)
     log.debug(f"use_fixed_port setting: {use_fixed_port} (type: {type(use_fixed_port).__name__})")
-    
+
     if use_fixed_port is True:  # Explicit comparison with True
         port = settings.get("http_port", 5127)
         log.info(f"Using fixed port from settings: {port}")
@@ -351,9 +378,9 @@ def get_toast_notify_port(settings: Dict[str, Any]) -> int:
             import random
             port = random.randint(10000, 65000)
             log.warning(f"Socket binding failed: {e}. Using fallback random port: {port}")
-    
+
     # Set the environment variable with the new port
     os.environ["AYON_TOASTNOTIFY_PORT"] = str(port)
     log.debug(f"Set AYON_TOASTNOTIFY_PORT={port} in environment")
-    
+
     return port

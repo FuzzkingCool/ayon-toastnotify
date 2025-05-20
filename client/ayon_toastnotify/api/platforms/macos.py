@@ -49,15 +49,20 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
             self._notification_failures = 0
 
         try:
+            
+            # If warnings are disabled, silently fall back to osascript
+            if not self.alerter_installation_warnings_on_each_launch:
+                return self._show_osascript_notification(title, message)
             # Re-check the path to make sure it's available
             if not self.alerter_path:
-                self.alerter_path = install_alerter(None, async_install=False)
+                # If warnings are disabled, use async_install=False but don't wait for result to avoid UI blocking
+                self.alerter_path = install_alerter(None, async_install=not self.alerter_installation_warnings_on_each_launch)
                 
             if not self.alerter_path:
                 log.error("Could not get alerter path, notification failed")
                 self._notification_failures += 1
                 
-                # After 3 failures, suggest enabling notifications only if warnings are enabled
+                # After 3 failures, suggest enabling notifications ONLY if warnings are enabled
                 if self._notification_failures >= 3 and self.alerter_installation_warnings_on_each_launch:
                     self._notification_failures = 0
                     
@@ -68,9 +73,7 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                     QtCore.QTimer.singleShot(0, prompt_notification_settings)
                     return False
                     
-                # If warnings are disabled, fall back to osascript
-                if not self.alerter_installation_warnings_on_each_launch:
-                    return self._show_osascript_notification(title, message)
+               
                     
                 return False
         
@@ -139,11 +142,8 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                     except:
                         pass
                     
-                    # Fall back to osascript if warnings are disabled
-                    if not self.alerter_installation_warnings_on_each_launch:
-                        return self._show_osascript_notification(title, message)
-                        
-                    return False
+                    # Fall back to osascript if alerter fails
+                    return self._show_osascript_notification(title, message)
             except subprocess.TimeoutExpired:
                 # This is good - means it's running
                 log.debug("Alerter process running in background")
@@ -160,7 +160,7 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
             log.error(f"Error showing macOS notification: {e}")
             self._notification_failures += 1
             
-            # After 3 failures, suggest enabling notifications only if warnings are enabled
+            # After 3 failures, suggest enabling notifications ONLY if warnings are enabled
             if self._notification_failures >= 3 and self.alerter_installation_warnings_on_each_launch:
                 self._notification_failures = 0
                 
@@ -169,14 +169,10 @@ class ToastNotifyMacOSPlatform(ToastNotifyPlatformBase):
                 
                 # Run on main thread since Qt requires it - with a slight delay to avoid UI issues
                 QtCore.QTimer.singleShot(100, lambda: prompt_notification_settings())
-                
                 return False
                 
-            # Fall back to osascript if warnings are disabled
-            if not self.alerter_installation_warnings_on_each_launch:
-                return self._show_osascript_notification(title, message)
-                
-            return False
+            # Fall back to osascript in all other cases
+            return self._show_osascript_notification(title, message)
             
     def _show_osascript_notification(self, title, message):
         """Fall back to standard macOS notifications using osascript."""

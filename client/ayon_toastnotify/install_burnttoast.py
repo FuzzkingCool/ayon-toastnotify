@@ -282,7 +282,7 @@ def install_burnt_toast(settings, async_install=True):
         # Start installation in a background thread
         install_thread = threading.Thread(
             target=_perform_install,
-            args=(settings,)
+            args=(settings,),
         )
         install_thread.daemon = True
         install_thread.start()

@@ -303,6 +303,11 @@ def install_alerter(settings, async_install=True):
         log.debug("Alerter installation already in progress, skipping")
         return None
     
+    # Check if we should show installation warnings
+    show_warnings = False
+    if settings and isinstance(settings, dict):
+        show_warnings = settings.get("alerter_installation_warnings_on_each_launch", False)
+    
     if async_install:
         # Install in a separate thread to not block startup
         threading.Thread(
@@ -316,8 +321,8 @@ def install_alerter(settings, async_install=True):
         result = _ensure_alerter_available(False)
         
         # After successful installation, prompt for notification settings
-        # Only show prompt if installation succeeded
-        if not async_install and result and os.path.exists(result):
+        # Only show prompt if installation succeeded AND warnings are enabled
+        if not async_install and result and os.path.exists(result) and show_warnings:
             # Use QTimer to ensure this runs on the main thread with a slight delay
             QtCore.QTimer.singleShot(100, prompt_notification_settings)
         
