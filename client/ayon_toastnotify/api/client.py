@@ -1,22 +1,23 @@
+import json
 import os
 import platform
-import json
-import threading
-import urllib.request
-import urllib.error
 import socket
+import threading
 import time
-from typing import Dict, Any, Optional, List, Callable
+import urllib.error
+import urllib.request
+from typing import Any, Callable, Dict, List, Optional
 
+from ..addon import ToastNotifyAddon
 from ..logger import log
 from .platforms import get_platform_handler
-from ..addon import ToastNotifyAddon
+
 
 class ToastNotifyClient:
     """
     Client for sending requests to the ToastNotify HTTP API.
     """
-    
+
     def __init__(self, host="localhost", port=5127, timeout=5.0):
         """
         Initialize the ToastNotify client.
@@ -30,14 +31,14 @@ class ToastNotifyClient:
         self.port = port
         self.timeout = timeout
         self._platform_handler = None
-        
+
     @property
     def platform_handler(self):
         """Lazy load the platform handler when needed"""
         # First try to use the shared handler from the addon
         if ToastNotifyAddon._platform_handler is not None:
             return ToastNotifyAddon._platform_handler
-            
+
         # Fall back to creating a new one only if necessary
         if self._platform_handler is None:
             try:
@@ -46,7 +47,7 @@ class ToastNotifyClient:
             except Exception as e:
                 log.error(f"Failed to initialize fallback platform handler: {e}")
         return self._platform_handler
-        
+
     def send_notification(
         self,
         title: str,
@@ -75,16 +76,16 @@ class ToastNotifyClient:
         # First try the HTTP service
         if self._try_http_notification(title, message, icon, timeout, actions, platform_options, on_action):
             return True
- 
+
         if self.platform_handler:
             try:
                 system = platform.system().lower()
                 specific_options = {}
-                
+
                 # Extract platform-specific options if available
                 if platform_options and system in platform_options:
                     specific_options = platform_options[system]
-                    
+
                 return self.platform_handler.show_notification(
                     title=title,
                     message=message,
@@ -96,9 +97,9 @@ class ToastNotifyClient:
                 )
             except Exception as e:
                 log.error(f"Error in fallback notification: {e}")
-                
+
         return False
-    
+
     def _try_http_notification(
         self,
         title: str,
@@ -115,7 +116,7 @@ class ToastNotifyClient:
             # fall back to direct platform handler since HTTP doesn't support callbacks
             if on_action and actions:
                 return False  # Skip HTTP for notifications with callbacks
-            
+
             # Prepare request data
             data = {
                 "title": title,
@@ -123,16 +124,16 @@ class ToastNotifyClient:
                 "timeout": timeout,
                 "actions": actions or []
             }
-            
+
             if icon:
                 data["icon"] = icon
-                
+
             if platform_options:
                 data["platform_options"] = platform_options
-                
+
             # Convert data to JSON
             json_data = json.dumps(data).encode('utf-8')
-            
+
             # Create request
             url = f"http://{self.host}:{self.port}/notify"
             headers = {"Content-Type": "application/json"}
@@ -142,11 +143,11 @@ class ToastNotifyClient:
                 headers=headers,
                 method="POST"
             )
-            
+
             # Send request with retry for connection errors
             max_retries = 1  # Reduced retries to make fallback quicker
             retry_count = 0
-            
+
             while retry_count <= max_retries:
                 try:
                     with urllib.request.urlopen(req, timeout=self.timeout) as response:
@@ -161,11 +162,11 @@ class ToastNotifyClient:
                         return False
                     log.warning(f"Failed to connect, retry {retry_count}/{max_retries}")
                     time.sleep(0.5)  # Short delay before retry
-                
+
         except Exception as e:
             log.error(f"Error in HTTP notification: {e}")
             return False
-            
+
     def check_service_health(self) -> bool:
         """
         Check if the ToastNotify service is running.
@@ -177,14 +178,14 @@ class ToastNotifyClient:
             # Create request
             url = f"http://{self.host}:{self.port}/health"
             req = urllib.request.Request(url=url, method="GET")
-            
+
             # Send request
             with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 if response.status == 200:
                     response_data = json.loads(response.read().decode('utf-8'))
                     return response_data.get("status") == "ok"
                 return False
-                
+
         except urllib.error.URLError:
             # Service is not running
             return False
@@ -204,7 +205,7 @@ def _send_async(client, title, message, icon, timeout, actions, platform_options
             icon=icon,
             timeout=timeout,
             actions=actions,
-            platform_options=platform_options,   
+            platform_options=platform_options,
             on_action=on_action
         )
         if callback:
@@ -230,7 +231,7 @@ def send_notification(
 ) -> bool:
     """
     Send a notification using the ToastNotify service.
-    
+
     Args:
         title: Notification title
         message: Notification message
@@ -244,18 +245,18 @@ def send_notification(
         callback: Function to call with result when notification completes
         on_action: Function to call when a button is clicked, receives action ID
         **additional_params: Additional parameters passed to the platform handler
-        
+
     Returns:
         bool: True if notification was dispatched successfully
     """
     # Process additional parameters by adding them to platform_options
     system = platform.system().lower()
     platform_options = platform_options or {}
-    
+
     # Make sure there's an entry for the current platform
     if system not in platform_options:
         platform_options[system] = {}
-        
+
     # Add any additional parameters to the platform options
     for key, value in additional_params.items():
         platform_options[system][key] = value
@@ -279,9 +280,9 @@ def send_notification(
             import random
             port = random.randint(10000, 65000)
             log.error(f"Error determining port: {e}, using random fallback: {port}")
-    
+
     client = ToastNotifyClient(host=host, port=port)
-    
+
     if async_send:
         thread = threading.Thread(
             target=_send_async,
@@ -352,21 +353,21 @@ def send_progress_notification(
             # Only as absolute last resort
             import random
             port = random.randint(10000, 65000)
-    
+
     # We can't use the HTTP service for progress bars, so use direct access to platform handler
     client = ToastNotifyClient(host=host, port=port)
-    
+
     # Get direct access to platform handler
     platform_handler = client.platform_handler
-    
+
     if not platform_handler:
         return False
-        
+
     # Check if the platform handler supports progress bars
     if not hasattr(platform_handler, 'show_progress_notification'):
         log.error("Progress notifications are not supported on this platform")
         return False
-        
+
     # Pass all parameters to the platform handler
     return platform_handler.show_progress_notification(
         title=title,

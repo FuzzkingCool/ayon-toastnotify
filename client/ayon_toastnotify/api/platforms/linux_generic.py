@@ -8,7 +8,7 @@ from ...logger import log
 class ToastNotifyLinuxPlatform(ToastNotifyPlatformBase):
     """Linux-specific implementation using notify-send."""
     
-    def __init__(self, settings):
+    def __init__(self, settings, project_name=None):
         super().__init__(settings)
         # Check if notify-send is available
         self.notify_send_available = self._check_notify_send()

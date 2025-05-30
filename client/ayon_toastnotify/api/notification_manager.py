@@ -161,7 +161,7 @@ class NotificationManager:
     Provides an HTTP API for receiving notification requests.
     """
 
-    def __init__(self, settings: Dict[str, Any], platform_handler=None):
+    def __init__(self, settings: Dict[str, Any], platform_handler=None, project_name=None):
         """Initialize the notification manager with given settings."""
         self.settings = settings
         # Use pre-determined port if provided, otherwise get a new one
@@ -170,7 +170,9 @@ class NotificationManager:
         self.thread = None
         self.server = None
         self.notification_timeout = settings.get("notification_timeout", 5)
-
+        # Add shutdown event for robust thread signaling
+        self._shutdown_event = threading.Event()
+        
         # Set environment variable for other processes to use
         os.environ["AYON_TOASTNOTIFY_PORT"] = str(self.http_port)
 
@@ -192,6 +194,8 @@ class NotificationManager:
                 log.error(f"Failed to initialize platform handler: {e}")
                 self.platform_handler = None
 
+        self.project_name = project_name
+        
     def _initialize_platform_handler(self):
         """Initialize the appropriate platform handler based on the current OS."""
         if platform.system() == "Windows":
@@ -208,7 +212,10 @@ class NotificationManager:
             alerter_path = _ensure_alerter_available()
 
             # Initialize with the actual path string
-            self.platform_handler = ToastNotifyMacOSPlatform(alerter_path=alerter_path)
+            self.platform_handler = ToastNotifyMacOSPlatform(
+                alerter_path=alerter_path,
+                settings=self.settings,
+                project_name=self.project_name)
         else:  # Linux
             from .platforms.linux_generic import ToastNotifyLinuxPlatform
             self.platform_handler = ToastNotifyLinuxPlatform()
@@ -226,6 +233,7 @@ class NotificationManager:
         log.info(f"Using port {self.http_port} for notification service")
 
         self.running = True
+        self._shutdown_event.clear()  # Clear shutdown event on start
         self.thread = threading.Thread(target=self._run_server, daemon=True)
         self.thread.start()
         log.info(f"Toast notification service started on port {self.http_port}")
@@ -236,6 +244,7 @@ class NotificationManager:
             return
 
         self.running = False
+        self._shutdown_event.set()  # Signal shutdown event
 
         if self.server:
             try:
@@ -252,6 +261,8 @@ class NotificationManager:
                 self.thread.join(timeout=2.0)
                 if self.thread.is_alive():
                     log.warning("Notification thread did not terminate within timeout")
+                else:
+                    log.info("Notification thread exited cleanly")
             except Exception as e:
                 log.error(f"Error joining notification thread: {e}")
 
@@ -291,7 +302,7 @@ class NotificationManager:
             self.server.timeout = 1.0
 
             # Main server loop
-            while self.running:
+            while self.running and not self._shutdown_event.is_set():
                 try:
                     self.server.handle_request()
                 except socket.timeout:
@@ -301,7 +312,7 @@ class NotificationManager:
                     if self.running:  # Only log if we're still supposed to be running
                         log.error(f"Error handling request: {e}")
                     break
-
+            log.info("Exiting server loop (shutdown event set or running is False)")
         except OSError as e:
             # Check for specific error codes
             if hasattr(e, 'errno') and e.errno == 10048:  # Address already in use
@@ -319,6 +330,7 @@ class NotificationManager:
                     self.server.server_close()
                 except Exception as e:
                     log.error(f"Error closing server: {e}")
+            log.info("_run_server thread finished")
 
     def show_notification(
         self,

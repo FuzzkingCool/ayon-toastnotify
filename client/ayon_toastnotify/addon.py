@@ -1,15 +1,17 @@
 import os
 import platform
+import sys
 from pathlib import Path
 
 from ayon_core.addon import AYONAddon, ITrayService
 
-from .version import __version__
-from .api.notification_manager import NotificationManager
-from .logger import log
-from .install_burnttoast import install_burnt_toast, warmup_powershell_session
-from .install_alerter import install_alerter
 from . import AYON_TOASTNOTIFY_ROOT
+from .api.notification_manager import NotificationManager
+from .install_alerter import install_alerter
+from .install_burnttoast import install_burnt_toast, warmup_powershell_session
+from .logger import log
+from .version import __version__
+
 
 class ToastNotifyAddon(AYONAddon, ITrayService):
     """
@@ -35,11 +37,16 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
         log.info(f"ToastNotify addon initialized with settings: {self.settings}")
 
         # DEBUG ( For Development )
-        os.environ["AYON_TOASTNOTIFY_DEBUG"] = "1"
+        # os.environ["AYON_TOASTNOTIFY_DEBUG"] = "1"
 
         # Clear any existing AYON_TOASTNOTIFY_PORT env var during init
         if "AYON_TOASTNOTIFY_PORT" in os.environ:
             log.debug(f"Removing stale AYON_TOASTNOTIFY_PORT={os.environ.pop('AYON_TOASTNOTIFY_PORT')}")
+
+        # Get the current project name
+        self.project_name = os.environ.get("AYON_PROJECT_NAME")
+
+        log.info(f"Current project name: {self.project_name}")
 
     def tray_init(self):
         """
@@ -112,7 +119,10 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
         self.settings = {**self.settings, "_port": port}  # Add the port to settings
 
         # Pass the shared platform handler to the notification manager
-        self.notification_manager = NotificationManager(self.settings, platform_handler=ToastNotifyAddon._platform_handler)
+        self.notification_manager = NotificationManager(
+            self.settings,
+            platform_handler=ToastNotifyAddon._platform_handler,
+            project_name=self.project_name)
         log.info("ToastNotify tray service initialized")
 
     def tray_start(self):
@@ -178,7 +188,10 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
                 os.environ.pop("AYON_TOASTNOTIFY_DEBUG")
 
             # If in debug mode, uninstall BurntToast
-            from .install_burnttoast import is_debug_mode, uninstall_burnt_toast
+            from .install_burnttoast import (
+                is_debug_mode,
+                uninstall_burnt_toast,
+            )
             if is_debug_mode() and platform.system() == "Windows":
                 log.info("Debug mode detected - attempting to uninstall BurntToast")
                 try:
@@ -194,3 +207,5 @@ class ToastNotifyAddon(AYONAddon, ITrayService):
             # Final cleanup to ensure no references remain
             self.settings = {}
 
+        # Finally use sys.exit to exit the addon
+        sys.exit(0)

@@ -231,14 +231,14 @@ def get_client_files_mapping() -> List[Tuple[str, str]]:
     """Get mapping of client files to their destinations."""
     import os
     from package import client_dir
-    
+
     # Add debug output using existing variables
     print(f"\n=== Client directory name set to: '{client_dir}' ===\n")
-    
+
     # Use the existing directory variable names from the function
     # Don't add the REPO_ROOT reference
     client_dirpath = os.path.join("client")  # Use relative path
-    
+
     # Debug: print out all files in client directory
     print(f"Client files in {client_dirpath}:")
     if os.path.exists(client_dirpath):
@@ -247,7 +247,7 @@ def get_client_files_mapping() -> List[Tuple[str, str]]:
                 print(f"  - {os.path.join(root, file)}")
     else:
         print(f"WARNING: Client directory not found at {client_dirpath}")
-    
+
     # Continue with the existing function code - don't modify the rest
     client_code_dir: str = os.path.join(CLIENT_ROOT, ADDON_CLIENT_DIR)
     mapping = [
@@ -403,8 +403,8 @@ def main(
     """Main entrypoint for package creation."""
     # Get addon details from settings
     addon_name = "toastnotify"
-    addon_version = "0.1.7"
-    
+    addon_version = "0.18"
+
     # Create bundle directory
     bundle_dir = os.path.join(output_dir or ".", f"{addon_name}-{addon_version}")
     os.makedirs(bundle_dir, exist_ok=True)
