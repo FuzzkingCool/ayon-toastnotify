@@ -14,3 +14,5 @@ ayon_compatible_addons = {}
 # Mapping of addon name to version requirements
 ayon_optional_addons = {}
 
+# Allow project to override addon version
+project_can_override_addon_version = True
