@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "toastnotify"
-version = "0.1.8"
+version = "0.1.9"
 description = "Debugly Addon"
 authors = ["Aleks Berland"]
 license = "MIT License"
@@ -17,7 +17,7 @@ qtpy = "^2.4.3"
 
 [tool.poetry.group.dev.dependencies]
 tomlkit = "^0.13.2"
-requests = "^2.32.3"
+requests = "^2.33.0"
 mkdocs-material = "^9.6.7"
 mkdocs-autoapi = "^0.4.0"
 mkdocstrings-python = "^1.16.2"
