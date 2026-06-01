@@ -1,6 +1,6 @@
 name = "toastnotify"
 title = "toastnotify"
-version = "0.1.8"
+version = "0.1.9"
 client_dir = "ayon_toastnotify"
 
 ayon_server_version = ">=1.1.2"
@@ -10,7 +10,7 @@ ayon_required_addons = {
 
 # Mapping of addon name to version requirements
 ayon_compatible_addons = {}
- 
+
 # Mapping of addon name to version requirements
 ayon_optional_addons = {}
 
