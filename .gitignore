@@ -184,7 +184,6 @@ toastnotify-*/
 __pycache__
 *.pyc
 ayon-toastnotify.code-workspace
-poetry.lock
 
 # VSCode 
 .vscode/
